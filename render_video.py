@@ -1,4 +1,4 @@
-import os, requests, json, subprocess, socket
+import os, sys, requests, json, subprocess, socket
 import moviepy.editor as mpe
 import urllib3.util.connection as urllib3_cn
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ColorClip
@@ -19,12 +19,19 @@ resume_url = os.environ.get('RESUME_URL')
 
 print(f"Total Scenes to render: {len(scenes_data)}")
 
-# 1. BULK AI Voiceover (Prevents GitHub Action from hanging)
-# "Swara" is professional for Earning/Finance
-subprocess.run(['edge-tts', '--voice', 'hi-IN-SwaraNeural', '--text', full_text, '--write-media', 'voiceover.mp3'])
+# ==========================================
+# 1. BULK AI Voiceover (SAFE METHOD TO PREVENT CRASH)
+# ==========================================
+print("Saving script to temp file to prevent terminal hangs...")
+with open("temp_script.txt", "w", encoding="utf-8") as f:
+    f.write(full_text)
+
+print("Generating AI Voiceover...")
+# sys.executable prevents PATH issues. '-f' prevents terminal character limits/crashes.
+subprocess.run([sys.executable, '-m', 'edge_tts', '--voice', 'hi-IN-SwaraNeural', '-f', 'temp_script.txt', '--write-media', 'voiceover.mp3'], check=True)
 
 voiceover = AudioFileClip("voiceover.mp3")
-# Speed boost for high retention
+# Speed boost for high retention in Shorts
 voiceover = voiceover.fx(vfx.speedx, 1.1)
 
 # ✅ THE SYNC FIX: Counting total words instead of characters
@@ -43,10 +50,12 @@ except:
 
 viral_colors = ['#FFD400', '#00FFFF', '#FFFFFF', '#39FF14'] 
 
-# 🌟 LONG FORMAT (Landscape 1920x1080) for 3-4 min videos
-TARGET_W, TARGET_H = 1920, 1080
+# 🌟 SHORTS FORMAT (Vertical 1080x1920)
+TARGET_W, TARGET_H = 1080, 1920
 
-# 2. Process Each Scene
+# ==========================================
+# 2. Process Each Scene (100% PERFECT SYNC)
+# ==========================================
 for i, scene in enumerate(scenes_data):
     keyword = scene.get('keyword', 'finance')
     text_line = scene.get('text', '').strip()
@@ -54,22 +63,20 @@ for i, scene in enumerate(scenes_data):
     if not text_line:
         continue
     
-    # ✅ PERFECT SYNC MATH: Calculate exact time based on words
+    # ✅ PERFECT SYNC MATH: Har scene ka time uske exact words ke hisaab se
     scene_words = len(text_line.split())
     scene_duration = voiceover.duration * (scene_words / max(total_words, 1))
     
-    # Notice: We REMOVED the "if scene_duration < 1.0" rule. This is why sync will be perfect now!
-    
     try:
-        # Pexels API orientation=landscape for Long Videos
+        # Pexels API orientation=portrait for Shorts
         search_query = f"{keyword} finance technology"
-        res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=landscape", headers=headers).json()
+        res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=portrait", headers=headers).json()
         
         if 'videos' in res and len(res['videos']) > 0:
             video_url = res['videos'][0]['video_files'][0]['link']
         else:
-            print(f"Fallback for {keyword}")
-            res = requests.get("https://api.pexels.com/videos/search?query=abstract technology&per_page=1&orientation=landscape", headers=headers).json()
+            print(f"Fallback video for {keyword}")
+            res = requests.get("https://api.pexels.com/videos/search?query=abstract technology&per_page=1&orientation=portrait", headers=headers).json()
             video_url = res['videos'][0]['video_files'][0]['link']
         
         vid_path = f"vid_{i}.mp4"
@@ -82,11 +89,13 @@ for i, scene in enumerate(scenes_data):
             clip = clip.resize(width=TARGET_W)
         clip = clip.crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_W, height=TARGET_H)
         
-        zoomed_clip = clip.resize(lambda t: 1.0 + 0.04 * (t / scene_duration)).set_position(('center', 'center'))
-        dark_overlay = ColorClip(size=(TARGET_W, TARGET_H), color=(0,0,0)).set_opacity(0.35).set_position(('center', 'center')).set_duration(scene_duration)
+        # Subtle Zoom & Dark Overlay
+        zoomed_clip = clip.resize(lambda t: 1.0 + 0.05 * (t / scene_duration)).set_position(('center', 'center'))
+        dark_overlay = ColorClip(size=(TARGET_W, TARGET_H), color=(0,0,0)).set_opacity(0.4).set_duration(scene_duration)
         
+        # 2 Words Per Screen for Shorts Pacing
         words = text_line.split(' ')
-        chunk_size = 3 # 3 words per screen for Landscape/Long format
+        chunk_size = 2 
         chunks = [' '.join(words[j:j + chunk_size]) for j in range(0, len(words), chunk_size)]
         
         word_clips = []
@@ -94,13 +103,13 @@ for i, scene in enumerate(scenes_data):
         
         for w_i, chunk in enumerate(chunks):
             current_color = viral_colors[w_i % len(viral_colors)]
+            txt_pos = ('center', 450) # Positioned to avoid YouTube Shorts UI
             
-            # Adjusted text size for Landscape video
-            bg_txt = TextClip(chunk, fontsize=100, color='black', font=HINDI_FONT_FILE, stroke_color='black', stroke_width=15, method='caption', size=(1600, None))
-            bg_txt = bg_txt.set_position(('center', 'center')).set_duration(duration_per_chunk).set_start(w_i * duration_per_chunk)
+            bg_txt = TextClip(chunk, fontsize=120, color='black', font=HINDI_FONT_FILE, stroke_color='black', stroke_width=18, method='caption', size=(950, None))
+            bg_txt = bg_txt.set_position(txt_pos).set_duration(duration_per_chunk).set_start(w_i * duration_per_chunk)
             
-            main_txt = TextClip(chunk, fontsize=100, color=current_color, font=HINDI_FONT_FILE, stroke_color='black', stroke_width=3, method='caption', size=(1600, None))
-            main_txt = main_txt.set_position(('center', 'center')).set_duration(duration_per_chunk).set_start(w_i * duration_per_chunk)
+            main_txt = TextClip(chunk, fontsize=120, color=current_color, font=HINDI_FONT_FILE, stroke_color='black', stroke_width=3, method='caption', size=(950, None))
+            main_txt = main_txt.set_position(txt_pos).set_duration(duration_per_chunk).set_start(w_i * duration_per_chunk)
             
             word_clips.extend([bg_txt, main_txt])
         
@@ -138,9 +147,8 @@ except: pass
 final_audio = CompositeAudioClip(audio_clips)
 final_video = final_video.set_audio(final_audio)
 
-# 🌟 MAGICAL FIX: FAST RENDER & COMPRESSED SIZE
-print("Rendering Final COMPRESSED LONG Video...")
-final_video.write_videofile("final_video.mp4", fps=24, codec="libx264", audio_codec="aac", threads=2, bitrate="2000k", preset="ultrafast")
+print("Rendering Final COMPRESSED SHORTS Video...")
+final_video.write_videofile("final_video.mp4", fps=24, codec="libx264", audio_codec="aac", threads=2, bitrate="1500k", preset="ultrafast")
 
 print("Starting 5-Layer Indestructible Upload System...")
 video_link = "Upload Failed"
@@ -189,11 +197,10 @@ print(f"🔥 FINAL YOUTUBE LINK: {video_link} 🔥")
 
 payload = {
     "chat_id": chat_id, 
-    "message": "👑 Bhai! Long Finance Video Ready (Perfect Sync)! 🔥", 
+    "message": "👑 Bhai! Shorts Video Ready (Perfect Sync)! 🔥", 
     "youtube_url": video_link
 }
 
-# 🛡️ HACKER TRICK: Chrome Browser Fake Header to bypass WAF
 safe_headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
     'Accept': 'application/json'
