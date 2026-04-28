@@ -8,7 +8,8 @@ on:
 jobs:
   build_video:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # ✅ FIX: Timer ko 15 se badha kar 45 minutes kar diya hai taaki slow render par cancel na ho
+    timeout-minutes: 45
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
