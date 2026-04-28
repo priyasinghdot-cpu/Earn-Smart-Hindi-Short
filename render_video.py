@@ -1,8 +1,8 @@
 import os
+import sys
 import requests
 import json
-import asyncio
-import edge_tts
+import subprocess
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ColorClip
 
 # ==========================================
@@ -12,7 +12,6 @@ HINDI_FONT_FILE = "Hindi.ttf"
 TARGET_W, TARGET_H = 1080, 1920 
 
 # GitHub Actions / n8n Data Fetching
-full_text = os.environ.get('FULL_TEXT', 'Paise kamane ka naya tarika.')
 chat_id = os.environ.get('CHAT_ID')
 webhook_url = os.environ.get('WEBHOOK_URL')
 pexels_key = os.environ.get('PEXELS_API_KEY')
@@ -49,14 +48,10 @@ for i, scene in enumerate(scenes_data):
 
     audio_path = f"voice_scene_{i}.mp3"
     
-    # ✅ HACKER FIX: Async Python code to generate edge-tts without terminal commands
-    async def generate_audio():
-        communicate = edge_tts.Communicate(text_line, "hi-IN-SwaraNeural")
-        await communicate.save(audio_path)
-    
     try:
-        # Run the async function to save audio
-        asyncio.run(generate_audio())
+        # ✅ THE ULTIMATE FIX: Python Module ke through run karna (No Path/Async Error)
+        print(f"Generating audio for scene {i}...")
+        subprocess.run([sys.executable, "-m", "edge_tts", "--voice", "hi-IN-SwaraNeural", "--text", text_line, "--write-media", audio_path], check=True)
         
         # Load audio and speed it up
         scene_audio = AudioFileClip(audio_path).fx(vfx.speedx, 1.1)
@@ -67,7 +62,7 @@ for i, scene in enumerate(scenes_data):
         if whoosh_sfx: master_audio_clips.append(whoosh_sfx.set_start(current_time))
         
     except Exception as e:
-        print(f"❌ Audio generation/parsing failed on scene {i}: {e}")
+        print(f"❌ Audio generation failed on scene {i}: {e}")
         continue
     
     try:
