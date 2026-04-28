@@ -32,7 +32,9 @@ voiceover = AudioFileClip("voiceover.mp3")
 # VIRAL HACK: 1.1x Speed boost for fast-paced retention
 voiceover = voiceover.fx(vfx.speedx, 1.1)
 
-total_chars = sum(len(s['text']) for s in scenes_data)
+# ✅ PERFECT SYNC FIX: Characters ki jagah Total Words ginenge
+total_words = sum(len(s['text'].split()) for s in scenes_data)
+
 video_clips = []
 audio_clips = [voiceover]
 headers = {"Authorization": pexels_key}
@@ -55,9 +57,9 @@ for i, scene in enumerate(scenes_data):
     keyword = scene.get('keyword', 'finance')
     text_line = scene.get('text', '')
     
-    # Precise timing calculation based on sped-up voiceover
-    scene_duration = voiceover.duration * (len(text_line) / max(total_chars, 1))
-    if scene_duration < 1.2: scene_duration = 1.2
+    # ✅ PERFECT SYNC FIX: Scene ka time uske exact words ke hisaab se niklega
+    scene_words = len(text_line.split())
+    scene_duration = voiceover.duration * (scene_words / max(total_words, 1))
     
     try:
         # Pexels API - Adding 'finance' to keyword for earning niche visuals
@@ -94,12 +96,12 @@ for i, scene in enumerate(scenes_data):
         chunks = [' '.join(words[j:j + chunk_size]) for j in range(0, len(words), chunk_size)]
         
         word_clips = []
-        duration_per_chunk = scene_duration / len(chunks)
+        duration_per_chunk = scene_duration / max(len(chunks), 1)
         
         for w_i, chunk in enumerate(chunks):
             current_color = viral_colors[w_i % len(viral_colors)]
             
-            # Positioned at Top-Center (500px) to avoid YouTube UI overlap
+            # Positioned at Top-Center (450px) to avoid YouTube UI overlap
             txt_pos = ('center', 450)
             
             bg_txt = TextClip(chunk, fontsize=130, color='black', font=HINDI_FONT_FILE, stroke_color='black', stroke_width=20, method='caption', size=(950, None))
