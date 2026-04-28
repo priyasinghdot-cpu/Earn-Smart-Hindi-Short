@@ -3,7 +3,13 @@ import sys
 import requests
 import json
 import subprocess
+# ✅ Use Native Async Edge-TTS
+import asyncio
+import edge_tts
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ColorClip
+
+# Force standard output to be unbuffered (immediate logs in GitHub Actions)
+sys.stdout.reconfigure(line_buffering=True)
 
 # ==========================================
 # 1. SETTINGS & PRO DESIGN (Earn Smart Hindi)
@@ -18,8 +24,8 @@ pexels_key = os.environ.get('PEXELS_API_KEY')
 scenes_data = json.loads(os.environ.get('SCENES_DATA', '[]'))
 resume_url = os.environ.get('RESUME_URL')
 
-print(f"--- 🚀 EARN SMART HINDI: GENERATING VIRAL CONTENT ---")
-print(f"Total Scenes to render: {len(scenes_data)}")
+print(f"\n--- 🚀 EARN SMART HINDI: GENERATING VIRAL CONTENT ---")
+print(f"Total Scenes to render: {len(scenes_data)}\n")
 
 video_clips = []
 master_audio_clips = []
@@ -36,60 +42,61 @@ except:
 viral_colors = ['#39FF14', '#FFD400', '#00FFFF', '#FFFFFF'] 
 
 # ==========================================
-# 3. SCENE RENDERING (100% PERFECT SYNC & NO HANGS)
+# 3. SCENE RENDERING (Perfect Sync & Anti-Hang)
 # ==========================================
 for i, scene in enumerate(scenes_data):
-    print(f"\n---> Starting Scene {i+1}...")
+    print(f"▶️ [START] Scene {i+1}...")
     keyword = scene.get('keyword', 'finance')
     text_line = scene.get('text', '').strip()
     
     if not text_line:
+        print(f"⏭️ Skipping empty scene {i+1}")
         continue
 
     audio_path = f"voice_scene_{i}.mp3"
-    temp_txt_path = "temp_text.txt"
     
     try:
-        # ✅ ANTI-HANG FIX 1: Text ko file mein save karo taaki terminal quotes se confuse na ho
-        with open(temp_txt_path, "w", encoding="utf-8") as f:
-            f.write(text_line)
+        print(f"   🎙️ Generating AI Voiceover...")
+        
+        # ✅ ANTI-HANG FIX 1: Native Python Async Call (No Subprocess/Terminal commands)
+        async def generate_voice():
+            communicate = edge_tts.Communicate(text_line, "hi-IN-SwaraNeural")
+            await communicate.save(audio_path)
             
-        print(f"[{i+1}] Generating audio via edge-tts...")
-        # Direct file passing (-f) avoids all command line injection hangs
-        subprocess.run([sys.executable, "-m", "edge_tts", "--voice", "hi-IN-SwaraNeural", "-f", temp_txt_path, "--write-media", audio_path], check=True)
+        asyncio.run(generate_voice())
+        
+        print(f"   ✅ Audio generated.")
         
         # Load audio and speed it up
         scene_audio = AudioFileClip(audio_path).fx(vfx.speedx, 1.1)
         scene_duration = scene_audio.duration
         
-        # Add voiceover and sfx to the master audio timeline
         master_audio_clips.append(scene_audio.set_start(current_time))
         if whoosh_sfx: master_audio_clips.append(whoosh_sfx.set_start(current_time))
         
     except Exception as e:
-        print(f"❌ Audio generation failed on scene {i+1}: {e}")
+        print(f"❌ Error generating audio for scene {i+1}: {e}")
         continue
     
     try:
-        print(f"[{i+1}] Fetching video from Pexels for keyword: '{keyword}'...")
-        # ✅ ANTI-HANG FIX 2: Strict timeouts added (15 seconds)
+        print(f"   🎥 Fetching video for keyword: '{keyword}'...")
+        # ✅ ANTI-HANG FIX 2: Strict Network Timeouts
         search_query = f"{keyword} finance technology"
-        res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=portrait", headers=headers, timeout=15).json()
+        res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=portrait", headers=headers, timeout=10).json()
         
         if 'videos' in res and len(res['videos']) > 0:
             video_url = res['videos'][0]['video_files'][0]['link']
         else:
-            print(f"[{i+1}] No video found, fetching fallback...")
-            res = requests.get(f"https://api.pexels.com/videos/search?query=abstract technology&per_page=1&orientation=portrait", headers=headers, timeout=15).json()
+            print(f"   ⚠️ No video found, using fallback...")
+            res = requests.get(f"https://api.pexels.com/videos/search?query=abstract technology&per_page=1&orientation=portrait", headers=headers, timeout=10).json()
             video_url = res['videos'][0]['video_files'][0]['link']
             
-        print(f"[{i+1}] Downloading video file...")
+        print(f"   ⬇️ Downloading video...")
         vid_path = f"vid_{i}.mp4"
         with open(vid_path, "wb") as f:
-            # ✅ Added timeout to video download as well
-            f.write(requests.get(video_url, timeout=30).content)
+            f.write(requests.get(video_url, timeout=20).content)
             
-        print(f"[{i+1}] Processing Video and Text formatting...")
+        print(f"   ✂️ Processing Text & Zoom FX...")
         clip = VideoFileClip(vid_path).subclip(0, scene_duration)
         
         # Resize and Crop
@@ -102,7 +109,7 @@ for i, scene in enumerate(scenes_data):
         zoomed_clip = clip.resize(lambda t: 1.0 + 0.05 * (t / scene_duration)).set_position(('center', 'center'))
         dark_overlay = ColorClip(size=(TARGET_W, TARGET_H), color=(0,0,0)).set_opacity(0.4).set_duration(scene_duration)
         
-        # 2-Word Fast Captions exactly synced to the scene_duration
+        # 2-Word Fast Captions exactly synced
         words = text_line.split(' ')
         chunk_size = 2 
         chunks = [' '.join(words[j:j + chunk_size]) for j in range(0, len(words), chunk_size)]
@@ -122,25 +129,23 @@ for i, scene in enumerate(scenes_data):
             
             word_clips.extend([bg_txt, main_txt])
         
-        # Combine video and text for this exact duration
         final_scene = CompositeVideoClip([zoomed_clip, dark_overlay] + word_clips, size=(TARGET_W, TARGET_H)).set_duration(scene_duration)
         video_clips.append(final_scene)
         
-        # Move timeline forward by exact audio length
         current_time += scene_duration
-        print(f"✅ Scene {i+1} Successfully Completed! ({scene_duration:.2f}s)")
+        print(f"✅ [DONE] Scene {i+1} Ready! ({scene_duration:.2f}s)\n")
         
     except Exception as e:
-        print(f"❌ Error rendering scene {i+1}: {e}")
+        print(f"❌ Error rendering scene {i+1}: {e}\n")
 
-# Cleanup temp file
-if os.path.exists("temp_text.txt"):
-    os.remove("temp_text.txt")
+# Cleanup audio files
+for i in range(len(scenes_data)):
+    if os.path.exists(f"voice_scene_{i}.mp3"): os.remove(f"voice_scene_{i}.mp3")
 
 # ==========================================
 # 4. FINAL STITCHING & AUDIO MIXING
 # ==========================================
-print("\n🔄 Stitching all scenes together (This may take a few minutes)...")
+print("🔄 Stitching all scenes together...")
 final_video = concatenate_videoclips(video_clips, method="compose")
 
 # Red Progress Bar
@@ -160,20 +165,21 @@ try:
         bgm = bgm.subclip(0, final_video.duration)
     master_audio_clips.append(bgm)
 except: 
-    print("Warning: bgm.mp3 not found. Skipping BGM.")
+    print("⚠️ Warning: bgm.mp3 not found. Skipping BGM.")
 
-# Apply perfectly synced master audio timeline to video
+# Apply master audio timeline
 final_video = final_video.set_audio(CompositeAudioClip(master_audio_clips))
 
 # ==========================================
-# 5. EXPORT & BULLETPROOF UPLOAD
+# 5. EXPORT & UPLOAD
 # ==========================================
 print("\n🎬 Rendering Final Video...")
 output_name = "final_video.mp4"
-# ✅ ANTI-HANG FIX 3: Threads changed from 4 to 2 to prevent GitHub Runner freezing
-final_video.write_videofile(output_name, fps=24, codec="libx264", audio_codec="aac", threads=2, bitrate="2000k", preset="ultrafast")
 
-print("\n🚀 Starting Bulletproof Upload System...")
+# ✅ ANTI-HANG FIX 3: Threads changed from 4 to 2, preset to ultrafast (Less CPU load)
+final_video.write_videofile(output_name, fps=24, codec="libx264", audio_codec="aac", threads=2, bitrate="1500k", preset="ultrafast")
+
+print("\n🚀 Starting Upload System...")
 video_link = "Upload Failed"
 
 endpoints = [
@@ -186,10 +192,9 @@ endpoints = [
 for name, url, field, get_link in endpoints:
     if video_link != "Upload Failed": break
     try:
-        print(f"Trying upload to {name}...")
+        print(f"📤 Trying upload to {name}...")
         files = {field: open(output_name, 'rb')}
         data = {'reqtype': 'fileupload'} if "catbox" in url else {}
-        # Keep upload timeout generous since video files are large
         res = requests.post(url, files=files, data=data, timeout=300) 
         
         if res.status_code == 200:
