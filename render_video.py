@@ -19,7 +19,7 @@ scenes_data = json.loads(os.environ.get('SCENES_DATA', '[]'))
 resume_url = os.environ.get('RESUME_URL')
 
 print(f"--- 🚀 EARN SMART HINDI: GENERATING VIRAL CONTENT ---")
-print(f"Total Scenes: {len(scenes_data)}")
+print(f"Total Scenes to render: {len(scenes_data)}")
 
 video_clips = []
 master_audio_clips = []
@@ -33,13 +33,13 @@ try:
 except:
     whoosh_sfx = pop_sfx = None
 
-# Wealth Colors
 viral_colors = ['#39FF14', '#FFD400', '#00FFFF', '#FFFFFF'] 
 
 # ==========================================
-# 3. SCENE RENDERING (100% PERFECT SYNC)
+# 3. SCENE RENDERING (100% PERFECT SYNC & NO HANGS)
 # ==========================================
 for i, scene in enumerate(scenes_data):
+    print(f"\n---> Starting Scene {i+1}...")
     keyword = scene.get('keyword', 'finance')
     text_line = scene.get('text', '').strip()
     
@@ -47,11 +47,16 @@ for i, scene in enumerate(scenes_data):
         continue
 
     audio_path = f"voice_scene_{i}.mp3"
+    temp_txt_path = "temp_text.txt"
     
     try:
-        # ✅ THE ULTIMATE FIX: Python Module ke through run karna (No Path/Async Error)
-        print(f"Generating audio for scene {i}...")
-        subprocess.run([sys.executable, "-m", "edge_tts", "--voice", "hi-IN-SwaraNeural", "--text", text_line, "--write-media", audio_path], check=True)
+        # ✅ ANTI-HANG FIX 1: Text ko file mein save karo taaki terminal quotes se confuse na ho
+        with open(temp_txt_path, "w", encoding="utf-8") as f:
+            f.write(text_line)
+            
+        print(f"[{i+1}] Generating audio via edge-tts...")
+        # Direct file passing (-f) avoids all command line injection hangs
+        subprocess.run([sys.executable, "-m", "edge_tts", "--voice", "hi-IN-SwaraNeural", "-f", temp_txt_path, "--write-media", audio_path], check=True)
         
         # Load audio and speed it up
         scene_audio = AudioFileClip(audio_path).fx(vfx.speedx, 1.1)
@@ -62,25 +67,29 @@ for i, scene in enumerate(scenes_data):
         if whoosh_sfx: master_audio_clips.append(whoosh_sfx.set_start(current_time))
         
     except Exception as e:
-        print(f"❌ Audio generation failed on scene {i}: {e}")
+        print(f"❌ Audio generation failed on scene {i+1}: {e}")
         continue
     
     try:
-        # Pexels API - Fetch Visuals
+        print(f"[{i+1}] Fetching video from Pexels for keyword: '{keyword}'...")
+        # ✅ ANTI-HANG FIX 2: Strict timeouts added (15 seconds)
         search_query = f"{keyword} finance technology"
-        res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=portrait", headers=headers).json()
+        res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=portrait", headers=headers, timeout=15).json()
         
         if 'videos' in res and len(res['videos']) > 0:
             video_url = res['videos'][0]['video_files'][0]['link']
         else:
-            print(f"No video found for {keyword}, using default abstract.")
-            res = requests.get(f"https://api.pexels.com/videos/search?query=abstract technology&per_page=1&orientation=portrait", headers=headers).json()
+            print(f"[{i+1}] No video found, fetching fallback...")
+            res = requests.get(f"https://api.pexels.com/videos/search?query=abstract technology&per_page=1&orientation=portrait", headers=headers, timeout=15).json()
             video_url = res['videos'][0]['video_files'][0]['link']
             
+        print(f"[{i+1}] Downloading video file...")
         vid_path = f"vid_{i}.mp4"
         with open(vid_path, "wb") as f:
-            f.write(requests.get(video_url).content)
+            # ✅ Added timeout to video download as well
+            f.write(requests.get(video_url, timeout=30).content)
             
+        print(f"[{i+1}] Processing Video and Text formatting...")
         clip = VideoFileClip(vid_path).subclip(0, scene_duration)
         
         # Resize and Crop
@@ -119,15 +128,19 @@ for i, scene in enumerate(scenes_data):
         
         # Move timeline forward by exact audio length
         current_time += scene_duration
-        print(f"✅ Scene {i+1} Ready: {keyword} ({scene_duration:.2f}s)")
+        print(f"✅ Scene {i+1} Successfully Completed! ({scene_duration:.2f}s)")
         
     except Exception as e:
-        print(f"❌ Error on scene {i}: {e}")
+        print(f"❌ Error rendering scene {i+1}: {e}")
+
+# Cleanup temp file
+if os.path.exists("temp_text.txt"):
+    os.remove("temp_text.txt")
 
 # ==========================================
 # 4. FINAL STITCHING & AUDIO MIXING
 # ==========================================
-print("Stitching scenes together...")
+print("\n🔄 Stitching all scenes together (This may take a few minutes)...")
 final_video = concatenate_videoclips(video_clips, method="compose")
 
 # Red Progress Bar
@@ -139,6 +152,7 @@ final_video = CompositeVideoClip([final_video, progress_bar])
 
 # Background Music
 try:
+    print("🎵 Adding Background Music...")
     bgm = AudioFileClip("bgm.mp3").volumex(0.12)
     if bgm.duration < final_video.duration:
         bgm = afx.audio_loop(bgm, duration=final_video.duration)
@@ -146,7 +160,7 @@ try:
         bgm = bgm.subclip(0, final_video.duration)
     master_audio_clips.append(bgm)
 except: 
-    print("Warning: bgm.mp3 not found. Skipping background music.")
+    print("Warning: bgm.mp3 not found. Skipping BGM.")
 
 # Apply perfectly synced master audio timeline to video
 final_video = final_video.set_audio(CompositeAudioClip(master_audio_clips))
@@ -154,9 +168,10 @@ final_video = final_video.set_audio(CompositeAudioClip(master_audio_clips))
 # ==========================================
 # 5. EXPORT & BULLETPROOF UPLOAD
 # ==========================================
-print("Rendering Final Video (Ultrafast Mode)...")
+print("\n🎬 Rendering Final Video...")
 output_name = "final_video.mp4"
-final_video.write_videofile(output_name, fps=24, codec="libx264", audio_codec="aac", threads=4, bitrate="2000k", preset="ultrafast")
+# ✅ ANTI-HANG FIX 3: Threads changed from 4 to 2 to prevent GitHub Runner freezing
+final_video.write_videofile(output_name, fps=24, codec="libx264", audio_codec="aac", threads=2, bitrate="2000k", preset="ultrafast")
 
 print("\n🚀 Starting Bulletproof Upload System...")
 video_link = "Upload Failed"
@@ -174,7 +189,8 @@ for name, url, field, get_link in endpoints:
         print(f"Trying upload to {name}...")
         files = {field: open(output_name, 'rb')}
         data = {'reqtype': 'fileupload'} if "catbox" in url else {}
-        res = requests.post(url, files=files, data=data, timeout=300)
+        # Keep upload timeout generous since video files are large
+        res = requests.post(url, files=files, data=data, timeout=300) 
         
         if res.status_code == 200:
             link = get_link(res)
