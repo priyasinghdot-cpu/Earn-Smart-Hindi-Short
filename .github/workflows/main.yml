@@ -22,10 +22,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick fonts-dejavu
-          sudo sed -i 's/<policy domain="path" rights="none" pattern="@\*"//g' /etc/ImageMagick-6/policy.xml
+          # 100% Bulletproof ImageMagick Fixes for TextClip
+          sudo sed -i 's/none/read,write/g' /etc/ImageMagick-6/policy.xml || true
+          sudo sed -i '/pattern="@\*"/d' /etc/ImageMagick-6/policy.xml || true
 
       - name: Install Libraries
-        run: pip install requests moviepy==1.0.3 Pillow==9.5.0 edge-tts
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests moviepy==1.0.3 Pillow==9.5.0 edge-tts
 
       - name: Run Python Engine
         env:
