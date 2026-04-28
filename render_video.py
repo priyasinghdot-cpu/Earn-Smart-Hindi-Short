@@ -21,24 +21,10 @@ resume_url = os.environ.get('RESUME_URL')
 print(f"--- 🚀 EARN SMART HINDI: GENERATING VIRAL CONTENT ---")
 print(f"Total Scenes: {len(scenes_data)}")
 
-# ==========================================
-# 2. PRO VOICE & SOUNDS
-# ==========================================
-# Voice: Swara (Professional & Authoritative)
-print("Generating AI Voiceover...")
-subprocess.run(['edge-tts', '--voice', 'hi-IN-SwaraNeural', '--text', full_text, '--write-media', 'voiceover.mp3'])
-
-voiceover = AudioFileClip("voiceover.mp3")
-# VIRAL HACK: 1.1x Speed boost for fast-paced retention
-voiceover = voiceover.fx(vfx.speedx, 1.1)
-
-# ✅ PERFECT SYNC FIX: Characters ki jagah Total Words ginenge
-total_words = sum(len(s['text'].split()) for s in scenes_data)
-
 video_clips = []
-audio_clips = [voiceover]
-headers = {"Authorization": pexels_key}
+master_audio_clips = []
 current_time = 0.0
+headers = {"Authorization": pexels_key}
 
 # Sound Effects
 try:
@@ -47,26 +33,41 @@ try:
 except:
     whoosh_sfx = pop_sfx = None
 
-# Wealth Colors: Green (Money), Yellow (Caution/Alert), Cyan (Tech), White
+# Wealth Colors
 viral_colors = ['#39FF14', '#FFD400', '#00FFFF', '#FFFFFF'] 
 
 # ==========================================
-# 3. SCENE RENDERING (The Retention Machine)
+# 3. SCENE RENDERING (100% PERFECT SYNC)
 # ==========================================
 for i, scene in enumerate(scenes_data):
     keyword = scene.get('keyword', 'finance')
-    text_line = scene.get('text', '')
+    text_line = scene.get('text', '').strip()
     
-    # ✅ PERFECT SYNC FIX: Scene ka time uske exact words ke hisaab se niklega
-    scene_words = len(text_line.split())
-    scene_duration = voiceover.duration * (scene_words / max(total_words, 1))
+    if not text_line:
+        continue
+
+    # ✅ PERFECT SYNC FIX: Har scene ka alag voiceover generate karo
+    audio_path = f"voice_scene_{i}.mp3"
+    subprocess.run(['edge-tts', '--voice', 'hi-IN-SwaraNeural', '--text', text_line, '--write-media', audio_path])
     
     try:
-        # Pexels API - Adding 'finance' to keyword for earning niche visuals
+        # Load audio and speed it up
+        scene_audio = AudioFileClip(audio_path).fx(vfx.speedx, 1.1)
+        scene_duration = scene_audio.duration
+        
+        # Add voiceover and sfx to the master audio timeline
+        master_audio_clips.append(scene_audio.set_start(current_time))
+        if whoosh_sfx: master_audio_clips.append(whoosh_sfx.set_start(current_time))
+        
+    except Exception as e:
+        print(f"❌ Audio parsing failed on scene {i}: {e}")
+        continue
+    
+    try:
+        # Pexels API - Fetch Visuals
         search_query = f"{keyword} finance technology"
         res = requests.get(f"https://api.pexels.com/videos/search?query={search_query}&per_page=1&orientation=portrait", headers=headers).json()
         
-        # Fallback if no video found
         if 'videos' in res and len(res['videos']) > 0:
             video_url = res['videos'][0]['video_files'][0]['link']
         else:
@@ -80,17 +81,17 @@ for i, scene in enumerate(scenes_data):
             
         clip = VideoFileClip(vid_path).subclip(0, scene_duration)
         
-        # Resize and Crop for Vertical Shorts
+        # Resize and Crop
         clip = clip.resize(height=TARGET_H)
         if clip.w < TARGET_W:
             clip = clip.resize(width=TARGET_W)
         clip = clip.crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_W, height=TARGET_H)
         
-        # Subtle Zoom & Dark Overlay
+        # Zoom & Dark Overlay
         zoomed_clip = clip.resize(lambda t: 1.0 + 0.05 * (t / scene_duration)).set_position(('center', 'center'))
         dark_overlay = ColorClip(size=(TARGET_W, TARGET_H), color=(0,0,0)).set_opacity(0.4).set_duration(scene_duration)
         
-        # Fast Captions (2 words per screen)
+        # 2-Word Fast Captions exactly synced to the scene_duration
         words = text_line.split(' ')
         chunk_size = 2 
         chunks = [' '.join(words[j:j + chunk_size]) for j in range(0, len(words), chunk_size)]
@@ -100,8 +101,6 @@ for i, scene in enumerate(scenes_data):
         
         for w_i, chunk in enumerate(chunks):
             current_color = viral_colors[w_i % len(viral_colors)]
-            
-            # Positioned at Top-Center (450px) to avoid YouTube UI overlap
             txt_pos = ('center', 450)
             
             bg_txt = TextClip(chunk, fontsize=130, color='black', font=HINDI_FONT_FILE, stroke_color='black', stroke_width=20, method='caption', size=(950, None))
@@ -112,43 +111,43 @@ for i, scene in enumerate(scenes_data):
             
             word_clips.extend([bg_txt, main_txt])
         
-        # Composite the scene
+        # Combine video and text for this exact duration
         final_scene = CompositeVideoClip([zoomed_clip, dark_overlay] + word_clips, size=(TARGET_W, TARGET_H)).set_duration(scene_duration)
         video_clips.append(final_scene)
         
-        # Add SFX Timing
-        if whoosh_sfx: audio_clips.append(whoosh_sfx.set_start(current_time))
+        # Move timeline forward by exact audio length
         current_time += scene_duration
-        print(f"✅ Scene {i+1} Ready: {keyword}")
+        print(f"✅ Scene {i+1} Ready: {keyword} ({scene_duration:.2f}s)")
         
     except Exception as e:
         print(f"❌ Error on scene {i}: {e}")
 
 # ==========================================
-# 4. FINAL STITCHING & BGM
+# 4. FINAL STITCHING & AUDIO MIXING
 # ==========================================
 print("Stitching scenes together...")
 final_video = concatenate_videoclips(video_clips, method="compose")
 
-# Red Progress Bar (Engagement Hack)
+# Red Progress Bar
 progress_bar = ColorClip(size=(TARGET_W, 15), color=(255, 0, 0))
 progress_bar = progress_bar.set_position(lambda t: (-TARGET_W + int(TARGET_W * (t / final_video.duration)), 'bottom'))
 progress_bar = progress_bar.set_duration(final_video.duration)
 
 final_video = CompositeVideoClip([final_video, progress_bar])
 
-# Background Music (Upbeat/Lo-fi for Finance)
+# Background Music
 try:
     bgm = AudioFileClip("bgm.mp3").volumex(0.12)
     if bgm.duration < final_video.duration:
         bgm = afx.audio_loop(bgm, duration=final_video.duration)
     else:
         bgm = bgm.subclip(0, final_video.duration)
-    audio_clips.append(bgm)
+    master_audio_clips.append(bgm)
 except: 
     print("Warning: bgm.mp3 not found. Skipping background music.")
 
-final_video = final_video.set_audio(CompositeAudioClip(audio_clips))
+# Apply perfectly synced master audio timeline to video
+final_video = final_video.set_audio(CompositeAudioClip(master_audio_clips))
 
 # ==========================================
 # 5. EXPORT & BULLETPROOF UPLOAD
@@ -160,7 +159,6 @@ final_video.write_videofile(output_name, fps=24, codec="libx264", audio_codec="a
 print("\n🚀 Starting Bulletproof Upload System...")
 video_link = "Upload Failed"
 
-# 4-Layer robust upload to prevent 'No Binary Data' errors
 endpoints = [
     ("File.io", "https://file.io", "file", lambda r: r.json()['link']),
     ("Bashupload", "https://bashupload.com/", "file", lambda r: r.text.strip().split('\n')[0]),
@@ -185,18 +183,17 @@ for name, url, field, get_link in endpoints:
         print(f"❌ {name} failed: {e}")
 
 # ==========================================
-# 6. CALLBACK TO N8N WEBHOOK
+# 6. CALLBACK TO N8N
 # ==========================================
 print(f"\n🔥 FINAL LINK: {video_link} 🔥")
 
 payload = {
     "chat_id": chat_id, 
-    "message": "✅ Bhai! Earn Smart Hindi Video Ready!", 
+    "message": "✅ Bhai! Earn Smart Hindi Video Ready (Perfect Sync)! 🔥", 
     "youtube_url": video_link
 }
 
 if resume_url:
-    print(f"Resuming n8n workflow at: {resume_url}")
     try:
         requests.post(resume_url, json={"body": payload}, timeout=15)
         print("✅ Workflow Resumed Successfully.")
