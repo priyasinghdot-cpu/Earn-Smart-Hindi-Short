@@ -1,7 +1,8 @@
 import os
 import requests
 import json
-import subprocess
+import asyncio
+import edge_tts
 from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip, CompositeVideoClip, TextClip, concatenate_videoclips, vfx, afx, ColorClip
 
 # ==========================================
@@ -46,11 +47,17 @@ for i, scene in enumerate(scenes_data):
     if not text_line:
         continue
 
-    # ✅ PERFECT SYNC FIX: Har scene ka alag voiceover generate karo
     audio_path = f"voice_scene_{i}.mp3"
-    subprocess.run(['edge-tts', '--voice', 'hi-IN-SwaraNeural', '--text', text_line, '--write-media', audio_path])
+    
+    # ✅ HACKER FIX: Async Python code to generate edge-tts without terminal commands
+    async def generate_audio():
+        communicate = edge_tts.Communicate(text_line, "hi-IN-SwaraNeural")
+        await communicate.save(audio_path)
     
     try:
+        # Run the async function to save audio
+        asyncio.run(generate_audio())
+        
         # Load audio and speed it up
         scene_audio = AudioFileClip(audio_path).fx(vfx.speedx, 1.1)
         scene_duration = scene_audio.duration
@@ -60,7 +67,7 @@ for i, scene in enumerate(scenes_data):
         if whoosh_sfx: master_audio_clips.append(whoosh_sfx.set_start(current_time))
         
     except Exception as e:
-        print(f"❌ Audio parsing failed on scene {i}: {e}")
+        print(f"❌ Audio generation/parsing failed on scene {i}: {e}")
         continue
     
     try:
