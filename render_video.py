@@ -20,7 +20,7 @@ title = os.environ.get('TITLE', 'Earn Smart Money Shorts #Shorts')
 print(f"Total Scenes to render: {len(scenes_data)}")
 
 # 1. FREE AI Voiceover
-subprocess.run(['edge-tts', '--voice', 'hi-IN-MadhurNeural', '--text', full_text, '--write-media', 'voiceover.mp3'])
+subprocess.run(['edge-tts', '--voice', 'hi-IN-SwaraNeural', '--text', full_text, '--write-media', 'voiceover.mp3'])
 
 voiceover = AudioFileClip("voiceover.mp3")
 
